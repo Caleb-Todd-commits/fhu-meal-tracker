@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useState, useEffect } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -7,7 +7,9 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from 'react-native';
+import { useMealSwipeData } from '@/hooks/use-meal-swipe-data';
 
 // ---------- Utilities ----------
 const CURRENCY = new Intl.NumberFormat('en-US', {
@@ -15,8 +17,12 @@ const CURRENCY = new Intl.NumberFormat('en-US', {
   currency: 'USD',
   maximumFractionDigits: 2,
 });
-const prettyDate = (iso:string) => {
-  const d = new Date(iso + 'T12:00:00'); // avoid TZ edge cases
+const prettyDate = (dateStr:string) => {
+  // Handle various date formats from FHU website (e.g., "12/07/2024" or "2024-12-07")
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) {
+    return dateStr; // Return original if parsing fails
+  }
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 };
 const sectionTotal = (section) => section.data.reduce((sum, t) => sum + (t.amount || 0), 0);
@@ -24,9 +30,15 @@ const sectionTotal = (section) => section.data.reduce((sum, t) => sum + (t.amoun
 // ---------- Styling ----------
 const TAG_STYLES = {
   Starbucks: { bg: '#F3E8FF', text: '#6B21A8' },
-  LP:        { bg: '#E0F2FE', text: '#075985' },
+  LP:        { bg: '#FFE8EC', text: '#8B2635' },
   CFA:       { bg: '#FEF3C7', text: '#92400E' },
-  Jones:     { bg: '#DCFCE7', text: '#166534' },
+  Jones:     { bg: '#E8E8E8', text: '#4A4A4A' },
+  'MPA 14 Weekly Meals': { bg: '#FFE8EC', text: '#8B2635' },
+  'MPB 10 Weekly Meals': { bg: '#FFE8EC', text: '#8B2635' },
+  'MPC 80 Meals': { bg: '#FFE8EC', text: '#8B2635' },
+  'MPU 19 Meals': { bg: '#FFE8EC', text: '#8B2635' },
+  'Guest Meals': { bg: '#E8E8E8', text: '#4A4A4A' },
+  'DD': { bg: '#FFE8EC', text: '#8B2635' },
 };
 const ALL_TAGS = ['All', 'Starbucks', 'LP', 'CFA', 'Jones'];
 
@@ -106,8 +118,8 @@ const TagChip = memo(function TagChip({ label, active, onPress }) {
   );
 });
 
-const Tag = memo(function Tag({ value }) {
-  const style = TAG_STYLES[value] || { bg: '#E5E7EB', text: '#111827' };
+const Tag = memo(function Tag({ value }: { value: string }) {
+  const style = TAG_STYLES[value as keyof typeof TAG_STYLES] || { bg: '#E5E7EB', text: '#111827' };
   return (
     <View style={[styles.tag, { backgroundColor: style.bg }]}>
       <Text style={[styles.tagText, { color: style.text }]}>{value}</Text>
@@ -138,9 +150,41 @@ const SectionHeader = memo(function SectionHeader({ title, total }) {
 
 // ---------- Main Component ----------
 export default function TransactionsSectionList() {
+  const { transactions, isLoading, refresh } = useMealSwipeData();
   const [sections, setSections] = useState(BASE_SECTIONS);
   const [activeTag, setActiveTag] = useState('All');
-  const [refreshing, setRefreshing] = useState(false);
+
+  // Update sections when data changes
+  useEffect(() => {
+    if (transactions && transactions.length > 0) {
+      // Group transactions by date
+      const grouped = transactions.reduce((acc: any, txn: any) => {
+        const date = txn.date;
+        if (!acc[date]) {
+          acc[date] = [];
+        }
+        // Parse amount string to number
+        const amountNum = parseFloat(txn.amount.replace('$', '').replace('-', ''));
+        acc[date].push({
+          id: `${date}-${txn.time}`,
+          amount: amountNum,
+          description: txn.description,
+          tag: txn.account,
+        });
+        return acc;
+      }, {});
+
+      // Convert to sections array
+      const newSections = Object.keys(grouped)
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+        .map(date => ({
+          date,
+          data: grouped[date],
+        }));
+
+      setSections(newSections.length > 0 ? newSections : BASE_SECTIONS);
+    }
+  }, [transactions]);
 
   // Filter sections by tag (and drop empty sections)
   const filtered = useMemo(() => {
@@ -157,23 +201,10 @@ export default function TransactionsSectionList() {
     [filtered]
   );
 
-  // Pull-to-refresh: simulate a network update (e.g., add a tiny random cents delta)
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setSections((prev) =>
-        prev.map((sec) => ({
-          ...sec,
-          data: sec.data.map((t) => ({
-            ...t,
-            // simulate fresh amounts +/- up to 10 cents
-            amount: Math.max(0, +(t.amount + ((Math.random() - 0.5) * 0.2)).toFixed(2)),
-          })),
-        }))
-      );
-      setRefreshing(false);
-    }, 2000);
-  }, []);
+  // Pull-to-refresh
+  const onRefresh = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
 
   // Memoized renderers to reduce re-renders
   const renderItem = useCallback(({ item }) => <TransactionRow item={item} />, []);
@@ -216,9 +247,9 @@ export default function TransactionsSectionList() {
 
         // Pull-to-refresh
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh} 
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={onRefresh}
             tintColor="#E5E7EB"  />
         }
 

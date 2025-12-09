@@ -4,26 +4,27 @@ import { StyleSheet, Text, View } from "react-native";
 type ProgressBarProps = {
   title: string;
   percentage: number;
-  label: string;
 };
 
-const ProgressBar = ({title, label, percentage}:ProgressBarProps) => {
+const ProgressBar = ({title, percentage}:ProgressBarProps) => {
 
 //const formattedPercentage = Math.round(percentage * 10) / 10;
 const formattedPercentage = percentage.toFixed(1);    // pads with trailing 0
 
   return (
     <View style={styles.container}>
-      <View style={styles.row}>
-        <Text style={styles.rowTitle}> {title}</Text>
-        <Text style={styles.rowPercent}> {formattedPercentage}%</Text>
-      </View>
+      {title && (
+        <View style={styles.row}>
+          <Text style={styles.rowTitle}> {title}</Text>
+          <Text style={styles.rowPercent}> {formattedPercentage}%</Text>
+        </View>
+      )}
 
       <View style={styles.track}>
-        <View style={[ {width: `${percentage}%`}, styles.progress]}></View>
+        <View style={[ {width: `${percentage}%`}, styles.progress]}>
+          <Text style={styles.labelInBar} numberOfLines={1}>{formattedPercentage}%</Text>
+        </View>
       </View>
-
-      <Text> {label}</Text>
     </View>
   );
 };
@@ -33,8 +34,7 @@ export default ProgressBar;
 const styles = StyleSheet.create({
     container : {
         display: "flex",
-        // flex:1,
-        padding: 8,
+        padding: 4,
         justifyContent: "flex-start",
         alignItems: "stretch"
     },
@@ -52,15 +52,36 @@ const styles = StyleSheet.create({
     fontWeight: 800
   },
   track: {
-    backgroundColor: "#ccc",
-    height: 16,
-    overflow: "hidden",
-    borderRadius: 8,
-    marginBlock:4,
-    flexDirection: "row"
+    backgroundColor: "#1F2937",
+    height: 40,
+    width: "100%",
+    borderRadius: 10,
+    marginTop: 4,
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "center",
+    position: "relative",
+    overflow: "hidden"
   },
   progress: {
-    backgroundColor: "#004568",
-    borderRadius: 8
+    backgroundColor: "#374151",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 70,
+    paddingHorizontal: 4
+  },
+  labelInBar: {
+    color: "#E5E7EB",
+    fontSize: 13,
+    fontWeight: "600",
+    flexShrink: 0
+  },
+  percentageText: {
+    position: "absolute",
+    right: 12,
+    color: "#9CA3AF",
+    fontSize: 13,
+    fontWeight: "700"
   }
 });
